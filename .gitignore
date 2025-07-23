@@ -35,6 +35,12 @@ wheels/
 *.egg
 MANIFEST
 
+# Poetry cache and artifacts - IMPORTANT FOR PERFORMANCE
+.poetry-cache/
+poetry-cache/
+.cache/
+cache/
+
 # IDE files
 .vscode/
 .idea/
