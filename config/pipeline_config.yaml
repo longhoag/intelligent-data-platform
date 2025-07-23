@@ -1,65 +1,159 @@
 # Pipeline Configuration
 pipeline:
-  name: "data_ingestion_pipeline"
-  description: "Day 1 data pipeline for ingesting from multiple sources"
+  name: "financial_data_pipeline"
+  description: "Financial data pipeline for real-time market analytics and forecasting"
   schedule_interval: "@hourly"
   max_retries: 3
   retry_delay: 300  # 5 minutes
 
-# Data Sources - 3+ sources for Day 1 requirements
+# Data Sources - Financial market data for analytics and ML
 sources:
   api:
-    name: "jsonplaceholder_api"
-    base_url: "https://jsonplaceholder.typicode.com"
+    name: "alpha_vantage_api"
+    base_url: "https://www.alphavantage.co/query"
     endpoints:
-      users: "/users"
-      posts: "/posts"
-      comments: "/comments"
-    timeout: 30
+      daily_prices: "?function=TIME_SERIES_DAILY&symbol={symbol}&apikey=demo"
+      forex: "?function=FX_DAILY&from_symbol=EUR&to_symbol=USD&apikey=demo"
+      crypto: "?function=DIGITAL_CURRENCY_DAILY&symbol=BTC&market=USD&apikey=demo"
+    timeout: 60
     retry_attempts: 3
+    description: "Alpha Vantage financial data API"
     
   api_secondary:
-    name: "httpbin_api"
-    base_url: "https://httpbin.org"
+    name: "financial_indicators_api"
+    base_url: "https://api.exchangerate-api.com/v4"
     endpoints:
-      json_data: "/json"
-    timeout: 30
+      exchange_rates: "/latest/USD"
+      historical_rates: "/history/USD/2024-01-01"
+    timeout: 60
     retry_attempts: 3
+    description: "Exchange rates and financial indicators"
     
   file:
-    name: "sample_data_file"
-    path: "data/sample_data.csv"
+    name: "sp500_historical_data"
+    url: "https://raw.githubusercontent.com/datasets/s-and-p-500/master/data/data.csv"
+    path: "data/sp500_historical.csv"
     format: "csv"
     delimiter: ","
     encoding: "utf-8"
+    description: "S&P 500 historical price data"
+    
+  file_secondary:
+    name: "nasdaq_stocks_data"
+    url: "https://raw.githubusercontent.com/datasets/nasdaq-listings/master/data/nasdaq-listed.csv"
+    path: "data/nasdaq_stocks.csv"
+    format: "csv"
+    delimiter: ","
+    encoding: "utf-8"
+    description: "NASDAQ stock listings and company data"
     
   database:
-    name: "sample_database"
+    name: "trading_data"
     type: "sqlite"
-    path: "data/sample_database.db"
+    path: "data/financial_database.db"
+    description: "Trading transactions and portfolio data"
+    queries:
+      portfolios: "SELECT * FROM portfolios"
+      transactions: "SELECT * FROM transactions"
+      market_data: "SELECT * FROM market_data"
 
-# Data Validation Rules
+# Data Validation Rules - Financial data focused validation
 validation:
-  min_records: 10
-  required_columns:
-    users: ["id", "name", "email"]
-    posts: ["id", "userId", "title", "body"]
-    file_data: ["id", "value"]
+  min_records: 100  # Minimum records per dataset
+  max_missing_percent: 10
   
-  data_types:
-    users:
-      id: "int64"
-      name: "string"
-      email: "string"
-    posts:
-      id: "int64"
-      userId: "int64"
-      title: "string"
-      body: "string"
+  required_columns:
+    daily_prices: ["Date", "Open", "High", "Low", "Close", "Volume"]
+    forex: ["date", "open", "high", "low", "close"]
+    crypto: ["date", "open", "high", "low", "close", "volume"]
+    exchange_rates: ["base", "date", "rates"]
+    sp500_historical: ["Date", "SP500"]
+    nasdaq_stocks: ["Symbol", "Company Name", "Market Category"]
+    portfolios: ["portfolio_id", "account_id", "total_value", "created_date"]
+    transactions: ["transaction_id", "portfolio_id", "symbol", "quantity", "price", "transaction_date"]
+    market_data: ["symbol", "date", "open", "high", "low", "close", "volume"]
+  
+  column_types:
+    daily_prices:
+      Open: "numeric"
+      High: "numeric"
+      Low: "numeric"
+      Close: "numeric"
+      Volume: "numeric"
+    forex:
+      open: "numeric"
+      high: "numeric"
+      low: "numeric"
+      close: "numeric"
+    sp500_historical:
+      SP500: "numeric"
+    transactions:
+      quantity: "numeric"
+      price: "numeric"
+    market_data:
+      open: "numeric"
+      high: "numeric"
+      low: "numeric"
+      close: "numeric"
+      volume: "numeric"
+  
+  format_rules:
+    daily_prices:
+      Date: "datetime"
+    sp500_historical:
+      Date: "datetime"
+    portfolios:
+      created_date: "datetime"
+    transactions:
+      transaction_date: "datetime"
+    market_data:
+      date: "datetime"
+  
+  business_rules:
+    check_duplicates: true
+    financial_specific:
+      - high_not_less_than_low: true
+      - close_within_range: true
+      - positive_volume: true
+      - valid_price_range: true
+    foreign_keys:
+      - column: "portfolio_id"
+        reference_table: "portfolios"
+      - column: "transaction_id" 
+        reference_table: "transactions"
+
+# Data Transformation Configuration - Financial data focused transformations
+transformation:
+  operations:
+    - clean_duplicates
+    - standardize_dates
+    - normalize_symbols
+    - validate_numeric
+    - calculate_returns
+    - calculate_moving_averages
+    - detect_outliers
+  
+  column_mappings:
+    standardize_names: true
+    date_format: "YYYY-MM-DD"
+    text_encoding: "utf-8"
+    symbol_standardization: true
+  
+  aggregations:
+    enabled: true
+    group_by: ["symbol", "date"]
+    metrics: ["sum", "mean", "count", "volatility", "returns"]
+    
+  financial_specific:
+    calculate_technical_indicators: true
+    normalize_prices: true
+    risk_metrics: true
+    correlation_analysis: true
 
 # Output Configuration
 output:
   format: "csv"
+  path: "data/processed"
   directory: "data/processed"
   filename_pattern: "{source}_{timestamp}.csv"
   

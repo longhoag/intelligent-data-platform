@@ -3,13 +3,11 @@ Data Loaders - Load processed data to destinations (Day 1 Essential)
 """
 
 import pandas as pd
-import logging
 import os
 from typing import Dict, List, Any, Optional
 from abc import ABC, abstractmethod
 from datetime import datetime
-
-logger = logging.getLogger(__name__)
+from loguru import logger
 
 
 class BaseLoader(ABC):

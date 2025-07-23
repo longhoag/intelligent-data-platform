@@ -1,13 +1,13 @@
 """
-Data Transformers - Clean and transform extracted data (Day 1 Essential)
+Data Transformers - Transform and enrich data (Day 1 Essential)
 """
 
 import pandas as pd
-import logging
+import numpy as np
 from typing import Dict, List, Any, Optional
+from datetime import datetime
 from abc import ABC, abstractmethod
-
-logger = logging.getLogger(__name__)
+from loguru import logger
 
 
 class BaseTransformer(ABC):

@@ -1,0 +1,32 @@
+{
+  "pipeline_info": {
+    "name": "COVID-19 Data Pipeline Demo",
+    "execution_date": "2025-07-22T18:25:14.107953",
+    "total_execution_time": "91.79 seconds"
+  },
+  "data_processing": {
+    "total_extracted_records": 252981,
+    "total_transformed_records": 252981,
+    "final_loaded_records": 252981
+  },
+  "validation_results": {
+    "data_quality_score": 63.63636363636363,
+    "errors_found": 4,
+    "warnings_found": 0,
+    "checks_performed": 11,
+    "checks_passed": 7
+  },
+  "covid_success_criteria": {
+    "multiple_sources": true,
+    "record_count_target": true,
+    "execution_time_target": true,
+    "error_handling_coverage": true,
+    "data_quality": true
+  },
+  "performance_metrics": {
+    "records_per_second": 2755.9533354432333,
+    "meets_time_requirement": true,
+    "meets_volume_requirement": true,
+    "meets_error_coverage": true
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "pipeline_info": {
+    "name": "Financial Data Pipeline Demo",
+    "execution_date": "2025-07-23T00:23:16.392943",
+    "total_execution_time": "1.52 seconds"
+  },
+  "data_processing": {
+    "total_extracted_records": 48141,
+    "total_transformed_records": 48141,
+    "final_loaded_records": 48141
+  },
+  "validation_results": {
+    "data_quality_score": 77.77777777777779,
+    "errors_found": 6,
+    "warnings_found": 0,
+    "checks_performed": 27,
+    "checks_passed": 21
+  },
+  "financial_success_criteria": {
+    "multiple_sources": true,
+    "record_count_target": true,
+    "execution_time_target": true,
+    "error_handling_coverage": true,
+    "data_quality": true
+  },
+  "performance_metrics": {
+    "records_per_second": 31633.018994413407,
+    "meets_time_requirement": true,
+    "meets_volume_requirement": true,
+    "meets_error_coverage": true
+  }
+}

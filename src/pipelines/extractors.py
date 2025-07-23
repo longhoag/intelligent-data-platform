@@ -1,6 +1,16 @@
 """
-Data Extractors - Extract data from various sources
+Data Extractors - Extract data from various sources (Day 1 Essential)
 """
+
+import pandas as pd
+import sqlite3
+import requests
+import os
+from typing import Dict, List, Any, Optional
+from abc import ABC, abstractmethod
+import time
+import random
+from loguru import logger
 
 import requests
 import pandas as pd
@@ -70,32 +80,64 @@ class APIExtractor(BaseExtractor):
 
 
 class FileExtractor(BaseExtractor):
-    """Extract data from files"""
+    """Extract data from files with real data download capabilities"""
     
-    def __init__(self, file_path: str, file_format: str = "csv", **kwargs):
+    def __init__(self, file_path: str = None, file_format: str = "csv", **kwargs):
         self.file_path = file_path
         self.file_format = file_format.lower()
         self.read_kwargs = kwargs
     
-    def extract(self) -> pd.DataFrame:
-        """Extract data from file"""
+    def download_file(self, url: str, local_path: str) -> bool:
+        """Download file from URL to local path"""
         try:
-            logger.info(f"Extracting data from {self.file_path}")
+            logger.info(f"Downloading file from {url} to {local_path}")
+            
+            # Create directory if it doesn't exist
+            import os
+            os.makedirs(os.path.dirname(local_path), exist_ok=True)
+            
+            response = requests.get(url, stream=True, timeout=120)
+            response.raise_for_status()
+            
+            with open(local_path, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+            
+            logger.info(f"Successfully downloaded file to {local_path}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to download file from {url}: {e}")
+            return False
+    
+    def extract(self, file_path: str = None, file_url: str = None) -> pd.DataFrame:
+        """Extract data from file, downloading if URL provided"""
+        target_path = file_path or self.file_path
+        
+        # Download file if URL is provided
+        if file_url:
+            if not self.download_file(file_url, target_path):
+                raise Exception(f"Failed to download file from {file_url}")
+        
+        try:
+            logger.info(f"Extracting data from {target_path}")
             
             if self.file_format == "csv":
-                df = pd.read_csv(self.file_path, **self.read_kwargs)
+                df = pd.read_csv(target_path, **self.read_kwargs)
             elif self.file_format == "json":
-                df = pd.read_json(self.file_path, **self.read_kwargs)
+                df = pd.read_json(target_path, **self.read_kwargs)
+            elif self.file_format == "excel":
+                df = pd.read_excel(target_path, **self.read_kwargs)
             elif self.file_format == "parquet":
-                df = pd.read_parquet(self.file_path, **self.read_kwargs)
+                df = pd.read_parquet(target_path, **self.read_kwargs)
             else:
                 raise ValueError(f"Unsupported file format: {self.file_format}")
             
-            logger.info(f"Successfully extracted {len(df)} records from {self.file_path}")
+            logger.info(f"Successfully extracted {len(df)} records from {target_path}")
             return df
             
         except Exception as e:
-            logger.error(f"Failed to extract from {self.file_path}: {e}")
+            logger.error(f"Failed to extract data from {target_path}: {e}")
             raise
     
     def validate_source(self) -> bool:
@@ -105,98 +147,6 @@ class FileExtractor(BaseExtractor):
             return os.path.exists(self.file_path) and os.access(self.file_path, os.R_OK)
         except Exception:
             return False
-
-
-def create_sample_data() -> None:
-    """Create sample data file for testing - 10,000+ records for Day 1 requirements"""
-    import os
-    os.makedirs("data", exist_ok=True)
-    
-    # Create large sample CSV data (12,000 records to exceed 10k requirement)
-    sample_data = pd.DataFrame({
-        'id': range(1, 12001),
-        'value': [f"sample_value_{i}" for i in range(1, 12001)],
-        'category': ['A', 'B', 'C', 'D', 'E'] * 2400,
-        'score': [i * 0.1 for i in range(1, 12001)],
-        'timestamp': pd.date_range('2025-01-01', periods=12000, freq='1min'),
-        'amount': np.random.uniform(10, 1000, 12000).round(2),
-        'status': ['active', 'inactive', 'pending'] * 4000
-    })
-    
-    sample_data.to_csv("data/sample_data.csv", index=False)
-    logger.info("Created sample data file with 12,000 records: data/sample_data.csv")
-
-
-def create_sample_database() -> None:
-    """Create sample SQLite database with 10,000+ records"""
-    import sqlite3
-    import os
-    
-    os.makedirs("data", exist_ok=True)
-    db_path = "data/sample_database.db"
-    
-    # Create database and tables
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    
-    # Create customers table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS customers (
-            customer_id INTEGER PRIMARY KEY,
-            name TEXT,
-            email TEXT,
-            signup_date DATE,
-            total_orders INTEGER
-        )
-    ''')
-    
-    # Create orders table  
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS orders (
-            order_id INTEGER PRIMARY KEY,
-            customer_id INTEGER,
-            product_name TEXT,
-            amount REAL,
-            order_date DATETIME
-        )
-    ''')
-    
-    # Insert 5000 customers
-    customers_data = []
-    for i in range(1, 5001):
-        customers_data.append((
-            i,
-            f'Customer_{i}',
-            f'customer{i}@example.com',
-            f'2024-{(i % 12) + 1:02d}-{(i % 28) + 1:02d}',
-            np.random.randint(1, 50)
-        ))
-    
-    cursor.executemany(
-        'INSERT OR REPLACE INTO customers VALUES (?, ?, ?, ?, ?)',
-        customers_data
-    )
-    
-    # Insert 8000 orders
-    orders_data = []
-    for i in range(1, 8001):
-        orders_data.append((
-            i,
-            np.random.randint(1, 5001),
-            f'Product_{np.random.randint(1, 500)}',
-            round(np.random.uniform(10, 500), 2),
-            f'2024-{np.random.randint(1, 13):02d}-{np.random.randint(1, 29):02d} {np.random.randint(0, 24):02d}:{np.random.randint(0, 60):02d}:00'
-        ))
-    
-    cursor.executemany(
-        'INSERT OR REPLACE INTO orders VALUES (?, ?, ?, ?, ?)',
-        orders_data
-    )
-    
-    conn.commit()
-    conn.close()
-    
-    logger.info("Created sample database with 13,000 records: data/sample_database.db")
 
 
 class DatabaseExtractor(BaseExtractor):
@@ -232,3 +182,170 @@ class DatabaseExtractor(BaseExtractor):
             return True
         except Exception:
             return False
+
+
+def create_financial_database() -> None:
+    """Create financial trading database with realistic market data"""
+    import sqlite3
+    import os
+    from datetime import datetime, timedelta
+    import random
+    
+    os.makedirs("data", exist_ok=True)
+    db_path = "data/financial_database.db"
+    
+    # Remove existing database to avoid conflicts
+    if os.path.exists(db_path):
+        os.remove(db_path)
+    
+    # Create database and tables
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    
+    # Create portfolios table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS portfolios (
+            portfolio_id INTEGER PRIMARY KEY,
+            account_id TEXT,
+            account_name TEXT,
+            total_value REAL,
+            cash_balance REAL,
+            created_date DATE,
+            last_updated DATE,
+            risk_level TEXT,
+            investment_strategy TEXT
+        )
+    ''')
+    
+    # Create transactions table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS transactions (
+            transaction_id INTEGER PRIMARY KEY,
+            portfolio_id INTEGER,
+            symbol TEXT,
+            company_name TEXT,
+            transaction_type TEXT,
+            quantity INTEGER,
+            price REAL,
+            transaction_date DATETIME,
+            commission REAL,
+            total_value REAL,
+            FOREIGN KEY (portfolio_id) REFERENCES portfolios (portfolio_id)
+        )
+    ''')
+    
+    # Create market_data table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS market_data (
+            id INTEGER PRIMARY KEY,
+            symbol TEXT,
+            date DATE,
+            open REAL,
+            high REAL,
+            low REAL,
+            close REAL,
+            volume INTEGER,
+            adjusted_close REAL,
+            sector TEXT,
+            market_cap REAL
+        )
+    ''')
+    
+    # Generate portfolio data (1000 portfolios)
+    portfolios = []
+    strategies = ["Growth", "Value", "Income", "Balanced", "Aggressive"]
+    risk_levels = ["Conservative", "Moderate", "Aggressive", "Very Aggressive"]
+    
+    for i in range(1, 1001):
+        created_date = datetime(2020, 1, 1) + timedelta(days=random.randint(0, 1400))
+        portfolios.append((
+            i,
+            f"ACC{i:06d}",
+            f"Account Holder {i}",
+            round(random.uniform(10000, 1000000), 2),
+            round(random.uniform(1000, 50000), 2),
+            created_date.strftime('%Y-%m-%d'),
+            (created_date + timedelta(days=random.randint(1, 100))).strftime('%Y-%m-%d'),
+            random.choice(risk_levels),
+            random.choice(strategies)
+        ))
+    
+    cursor.executemany('''
+        INSERT INTO portfolios VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', portfolios)
+    
+    # Generate transaction data (15000 transactions)
+    transactions = []
+    symbols = ["AAPL", "GOOGL", "MSFT", "AMZN", "TSLA", "META", "NVDA", "JPM", "JNJ", "V", 
+              "PG", "UNH", "HD", "MA", "BAC", "XOM", "DIS", "ADBE", "CRM", "NFLX"]
+    companies = {
+        "AAPL": "Apple Inc.", "GOOGL": "Alphabet Inc.", "MSFT": "Microsoft Corp.",
+        "AMZN": "Amazon.com Inc.", "TSLA": "Tesla Inc.", "META": "Meta Platforms Inc.",
+        "NVDA": "NVIDIA Corp.", "JPM": "JPMorgan Chase", "JNJ": "Johnson & Johnson",
+        "V": "Visa Inc.", "PG": "Procter & Gamble", "UNH": "UnitedHealth Group"
+    }
+    transaction_types = ["BUY", "SELL"]
+    
+    for i in range(1, 15001):
+        symbol = random.choice(symbols)
+        transaction_date = datetime(2020, 1, 1) + timedelta(days=random.randint(0, 1400))
+        price = round(random.uniform(50, 500), 2)
+        quantity = random.randint(1, 1000)
+        commission = round(random.uniform(5, 25), 2)
+        
+        transactions.append((
+            i,
+            random.randint(1, 1000),  # portfolio_id
+            symbol,
+            companies.get(symbol, f"{symbol} Corp."),
+            random.choice(transaction_types),
+            quantity,
+            price,
+            transaction_date.strftime('%Y-%m-%d %H:%M:%S'),
+            commission,
+            round(quantity * price + commission, 2)
+        ))
+    
+    cursor.executemany('''
+        INSERT INTO transactions VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', transactions)
+    
+    # Generate market data (25000 records)
+    market_data = []
+    sectors = ["Technology", "Healthcare", "Financial", "Consumer", "Energy", "Industrial"]
+    
+    for i in range(1, 25001):
+        symbol = random.choice(symbols)
+        date = datetime(2020, 1, 1) + timedelta(days=random.randint(0, 1400))
+        open_price = round(random.uniform(50, 500), 2)
+        high_price = round(open_price * random.uniform(1.0, 1.1), 2)
+        low_price = round(open_price * random.uniform(0.9, 1.0), 2)
+        close_price = round(random.uniform(low_price, high_price), 2)
+        volume = random.randint(100000, 50000000)
+        
+        market_data.append((
+            i,
+            symbol,
+            date.strftime('%Y-%m-%d'),
+            open_price,
+            high_price,
+            low_price,
+            close_price,
+            volume,
+            round(close_price * random.uniform(0.98, 1.02), 2),  # adjusted_close
+            random.choice(sectors),
+            random.randint(1000000000, 2000000000000)  # market_cap
+        ))
+    
+    cursor.executemany('''
+        INSERT INTO market_data VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', market_data)
+    
+    conn.commit()
+    conn.close()
+    
+    total_records = 1000 + 15000 + 25000
+    logger.info(f"Created financial database with {total_records:,} total records: {db_path}")
+    logger.info(f"  - Portfolios: 1,000 records")
+    logger.info(f"  - Transactions: 15,000 records")
+    logger.info(f"  - Market Data: 25,000 records")
