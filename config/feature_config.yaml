@@ -1,0 +1,75 @@
+# Day 2: Feature Engineering Configuration
+
+# Feature generation settings
+feature_engineering:
+  # Time-based features
+  time_features:
+    enabled: true
+    extract_components: true  # hour, day, month, quarter, dayofweek
+    sliding_windows: [3, 5, 10, 20, 50]
+    
+  # Statistical features
+  statistical_features:
+    enabled: true
+    functions: ['mean', 'std', 'min', 'max', 'median', 'skew', 'kurt']
+    rolling_windows: [5, 10, 20]
+    
+  # Technical indicators (financial specific)
+  technical_indicators:
+    enabled: true
+    moving_averages: [5, 10, 20, 50]
+    momentum_periods: [5, 10, 20]
+    volatility_windows: [10, 20]
+    
+  # Interaction features
+  interaction_features:
+    enabled: true
+    max_degree: 2
+    max_features: 20
+    
+  # Categorical encoding
+  categorical_encoding:
+    enabled: true
+    method: 'target'  # 'target', 'binary', 'onehot', 'label'
+    max_categories: 10
+    
+  # Polynomial features
+  polynomial_features:
+    enabled: true
+    degree: 2
+    include_bias: false
+    max_features: 10
+
+# Feature selection settings
+feature_selection:
+  enabled: true
+  method: 'random_forest'  # 'mutual_info', 'f_regression', 'random_forest', 'correlation'
+  max_features: 30
+  min_importance: 0.001
+  
+# Dimensionality reduction
+dimensionality_reduction:
+  enabled: false
+  method: 'pca'  # 'pca', 'lda', 'tsne'
+  n_components: 10
+  
+# Feature monitoring
+monitoring:
+  enabled: true
+  drift_threshold: 0.1
+  baseline_window: 1000
+  alert_threshold: 0.2
+  
+# Performance settings
+performance:
+  n_jobs: -1  # Use all available cores
+  chunk_size: 10000
+  memory_limit: '2GB'
+  
+# Output settings
+output:
+  save_features: true
+  save_importance: true
+  save_report: true
+  feature_path: 'data/features'
+  report_path: 'data/output'

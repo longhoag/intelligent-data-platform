@@ -1,6 +1,10 @@
 """
 Test suite for Day 1 pipeline components
 """
+from src.pipelines.extractors import APIExtractor, FileExtractor
+from src.pipelines.transformers import DataTransformer
+from src.pipelines.loaders import CSVLoader
+from src.pipelines.validation import DataValidator
 
 import pytest
 import pandas as pd
@@ -11,13 +15,6 @@ from unittest.mock import Mock, patch, MagicMock
 
 # Add src to path for testing
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
-
-from pipelines.extractors import APIExtractor, FileExtractor, create_sample_data
-from pipelines.transformers import DataTransformer, DataAggregator
-from pipelines.loaders import CSVLoader, MemoryLoader
-from pipelines.validation import DataValidator
-
-
 class TestExtractors:
     """Test data extraction functionality"""
     

@@ -6,21 +6,13 @@ import pandas as pd
 import sqlite3
 import requests
 import os
-from typing import Dict, List, Any, Optional
-from abc import ABC, abstractmethod
-import time
-import random
-from loguru import logger
-
-import requests
-import pandas as pd
 import numpy as np
 import logging
+import time
+import random
 from typing import Dict, List, Any, Optional
 from abc import ABC, abstractmethod
-import time
-
-logger = logging.getLogger(__name__)
+from loguru import logger
 
 
 class BaseExtractor(ABC):

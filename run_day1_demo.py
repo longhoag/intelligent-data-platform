@@ -37,10 +37,10 @@ logger.add(
 # Add src to path
 sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 
-from pipelines.extractors import APIExtractor, FileExtractor, DatabaseExtractor, create_financial_database
-from pipelines.transformers import DataTransformer
-from pipelines.loaders import CSVLoader
-from pipelines.validation import DataValidator
+from src.pipelines.extractors import APIExtractor, FileExtractor, DatabaseExtractor, create_financial_database
+from src.pipelines.transformers import DataTransformer
+from src.pipelines.loaders import CSVLoader
+from src.pipelines.validation import DataValidator
 
 
 def load_configuration():
