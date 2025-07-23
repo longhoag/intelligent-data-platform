@@ -1,5 +1,5 @@
 """
-Data Loaders - Load processed data to destinations (Day 1 Essential)
+DataLoaders - Load processed data to destinations (Day 1 Essential)
 """
 
 import pandas as pd
