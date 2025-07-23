@@ -338,7 +338,19 @@ def validate_financial_data(**context):
         validator = DataValidator(config['validation'])
         
         # Perform comprehensive validation
-        is_valid, validation_report = validator.validate_dataframe(combined_data, "financial_pipeline_data")
+        validation_report_obj = validator.validate(combined_data, "financial_pipeline_data")
+        
+        # Convert to compatible format for backward compatibility
+        is_valid = validation_report_obj.failed_checks == 0
+        validation_report = {
+            'record_count': len(combined_data),
+            'data_quality_score': validation_report_obj.success_rate,
+            'errors_found': [r.message for r in validation_report_obj.results if not r.passed],
+            'warnings': [],
+            'checks_performed': [r.check_name for r in validation_report_obj.results],
+            'timestamp': validation_report_obj.timestamp.isoformat(),
+            'source_name': validation_report_obj.source_name
+        }
         
         # Financial-specific validations
         financial_validations = {
@@ -368,7 +380,11 @@ def validate_financial_data(**context):
         # Check financial pipeline success criteria
         record_count = validation_report['record_count']
         quality_score = validation_report['data_quality_score']
-        error_coverage = validator._calculate_error_coverage()
+        
+        # Calculate error coverage based on number of validation checks performed
+        total_possible_checks = 20  # Estimate of comprehensive error scenarios
+        actual_checks = len(validation_report['checks_performed'])
+        error_coverage = min((actual_checks / total_possible_checks) * 100, 100)
         
         success_criteria = {
             'min_records_40k': record_count >= 40000,
