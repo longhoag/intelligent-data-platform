@@ -1,0 +1,70 @@
+# Pipeline Configuration
+pipeline:
+  name: "data_ingestion_pipeline"
+  description: "Day 1 data pipeline for ingesting from multiple sources"
+  schedule_interval: "@hourly"
+  max_retries: 3
+  retry_delay: 300  # 5 minutes
+
+# Data Sources - 3+ sources for Day 1 requirements
+sources:
+  api:
+    name: "jsonplaceholder_api"
+    base_url: "https://jsonplaceholder.typicode.com"
+    endpoints:
+      users: "/users"
+      posts: "/posts"
+      comments: "/comments"
+    timeout: 30
+    retry_attempts: 3
+    
+  api_secondary:
+    name: "httpbin_api"
+    base_url: "https://httpbin.org"
+    endpoints:
+      json_data: "/json"
+    timeout: 30
+    retry_attempts: 3
+    
+  file:
+    name: "sample_data_file"
+    path: "data/sample_data.csv"
+    format: "csv"
+    delimiter: ","
+    encoding: "utf-8"
+    
+  database:
+    name: "sample_database"
+    type: "sqlite"
+    path: "data/sample_database.db"
+
+# Data Validation Rules
+validation:
+  min_records: 10
+  required_columns:
+    users: ["id", "name", "email"]
+    posts: ["id", "userId", "title", "body"]
+    file_data: ["id", "value"]
+  
+  data_types:
+    users:
+      id: "int64"
+      name: "string"
+      email: "string"
+    posts:
+      id: "int64"
+      userId: "int64"
+      title: "string"
+      body: "string"
+
+# Output Configuration
+output:
+  format: "csv"
+  directory: "data/processed"
+  filename_pattern: "{source}_{timestamp}.csv"
+  
+# Logging Configuration
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "logs/pipeline.log"

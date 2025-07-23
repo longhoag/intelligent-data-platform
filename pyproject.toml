@@ -1,0 +1,39 @@
+[tool.poetry]
+name = "intelligent-data-platform"
+version = "0.1.0"
+description = "Intelligent Data Platform - Day 1 Implementation"
+authors = ["Data Team <data@company.com>"]
+readme = "README.md"
+packages = [{include = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+apache-airflow = "2.8.0"
+apache-airflow-providers-postgres = "^5.7.1"
+apache-airflow-providers-http = "^4.6.0"
+pandas = "^2.1.0"
+sqlalchemy = "^2.0.0"
+requests = "^2.31.0"
+psycopg2-binary = "^2.9.7"
+pyyaml = "^6.0.1"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.4.0"
+black = "^23.7.0"
+flake8 = "^6.0.0"
+mypy = "^1.5.0"
+jupyterlab = "^4.0.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 88
+target-version = ['py311']
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
