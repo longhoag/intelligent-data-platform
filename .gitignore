@@ -1,0 +1,105 @@
+# Data files and databases
+data/
+*.db
+*.sqlite
+*.csv
+*.json
+*.parquet
+
+# Virtual environments
+.venv/
+venv/
+env/
+.env
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Poetry
+poetry.lock
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# PyCharm
+.idea/
+
+# Coverage reports
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# Financial data cache
+cache/
+.cache/
+
+# Output files
+output/
+*.out
+
+# Large model files
+*.pkl
+*.pickle
+*.model
+*.h5
+*.hdf5
+
+# API keys and secrets
+.env
+.env.local
+.env.*.local
+secrets.yaml
+config/secrets/
+
+# Downloaded datasets
+downloaded/
+raw_data/
