@@ -32,6 +32,14 @@ statsmodels = "^0.14.0"
 featuretools = "^1.26.0"
 tsfresh = "^0.20.0"
 feature-engine = "^1.6.0"
+confluent-kafka = "^2.11.0"
+kafka-python = "^2.2.15"
+river = "^0.22.0"
+prometheus-client = "^0.22.1"
+opentelemetry-api = "^1.35.0"
+# Day 4: Feature Store Dependencies
+redis = "^5.0.0"
+mlflow = "^2.8.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.0"
