@@ -1,7 +1,23 @@
 """
-Data Quality Dashboard - Day 5
-Real-time monitoring dashboard for data quality and drift detection
+Quality monitoring dashboard using Streamlit.
+Provides real-time visualization of data quality metrics and drift detection.
 """
+
+import os
+import sys
+from datetime import datetime
+import streamlit as st
+import pandas as pd
+import numpy as np
+import plotly.express as px
+import plotly.graph_objects as go
+
+# Add the src directory to the path for imports
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+from quality.data_validation import (DataValidator, DataProfiler,
+                                     ValidationCheckpoint,
+                                     create_financial_validation_suite)
+from quality.drift_detection import DriftDetector
 
 import json
 import time
@@ -47,7 +63,10 @@ class QualityDashboard:
         self._render_sidebar()
         
         # Main content area
-        tab1, tab2, tab3, tab4 = st.tabs(["📊 Overview", "🔍 Validation", "📈 Drift Detection", "⚙️ System Health"])
+        tab1, tab2, tab3, tab4 = st.tabs([
+            "📊 Overview", "🔍 Validation", 
+            "📈 Drift Detection", "⚙️ System Health"
+        ])
         
         with tab1:
             self._render_overview_tab()

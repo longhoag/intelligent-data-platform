@@ -1,21 +1,18 @@
 """
-Data Drift Detection - Day 5
-Detect statistical drift and distributional changes in data streams
+Data drift detection module for identifying changes in data distributions.
+Implements multiple statistical methods for comprehensive drift analysis.
 """
 
-import json
-import warnings
-from typing import Dict, List, Any, Optional, Tuple, Union
+from typing import Dict, List, Any, Optional
+from dataclasses import dataclass
 from datetime import datetime, timedelta
-from dataclasses import dataclass, asdict
-import pandas as pd
 import numpy as np
+import pandas as pd
 from scipy import stats
 from scipy.spatial.distance import jensenshannon
-from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
-import pingouin as pg
 from loguru import logger
 from prometheus_client import Counter, Histogram, Gauge
 
@@ -223,7 +220,7 @@ class DriftDetector:
             statistic, p_value = stats.ks_2samp(ref_sample, current_sample)
             drift_detected = p_value < self.significance_level
             drift_score = float(statistic)
-        except Exception as e:
+        except (ValueError, TypeError) as e:
             logger.warning(f"KS test failed: {e}")
             statistic, p_value = 0.0, 1.0
             drift_detected = False
@@ -282,7 +279,7 @@ class DriftDetector:
                 statistic, p_value = stats.chisquare(current_frequencies, expected_frequencies)
                 drift_detected = p_value < self.significance_level
                 drift_score = float(statistic / len(all_categories))  # Normalized
-            except Exception as e:
+            except (ValueError, TypeError) as e:
                 logger.warning(f"Chi-square test failed: {e}")
                 statistic, p_value = 0.0, 1.0
                 drift_detected = False
@@ -336,7 +333,7 @@ class DriftDetector:
             js_distance = jensenshannon(ref_probs, current_probs)
             drift_score = float(js_distance)
             drift_detected = drift_score > 0.1  # Threshold for JS divergence
-        except Exception as e:
+        except (ValueError, TypeError) as e:
             logger.warning(f"JS divergence calculation failed: {e}")
             drift_score = 0.0
             drift_detected = False
@@ -468,7 +465,7 @@ class DriftDetector:
             drift_score = float(abs(accuracy - 0.5) * 2)  # Scale to 0-1
             drift_detected = accuracy > 0.75  # If >75% accuracy, significant drift
             
-        except Exception as e:
+        except (ValueError, TypeError, ImportError) as e:
             logger.warning(f"Adversarial drift detection failed: {e}")
             drift_score = 0.0
             drift_detected = False

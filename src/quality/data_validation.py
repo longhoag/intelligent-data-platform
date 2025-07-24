@@ -4,14 +4,17 @@ Custom data quality validation without Great Expectations dependency conflicts
 """
 
 import json
+import logging
 from typing import Dict, List, Any, Callable, Tuple
 from datetime import datetime
 from dataclasses import dataclass
 import pandas as pd
 import numpy as np
 from scipy import stats
-from loguru import logger
 from prometheus_client import Counter, Histogram, Gauge
+
+# Setup logging
+logger = logging.getLogger(__name__)
 
 
 @dataclass

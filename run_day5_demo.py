@@ -4,18 +4,18 @@ Comprehensive demonstration of data quality validation, drift detection, and mon
 """
 
 import asyncio
+import json
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
 import pandas as pd
 import numpy as np
 from loguru import logger
-import json
 
 # Import quality modules
 from src.quality.data_validation import (
     DataValidator, DataProfiler, ValidationCheckpoint,
-    create_financial_validation_suite, ExpectationSuite
+    create_financial_validation_suite
 )
 from src.quality.drift_detection import DriftDetector
 
@@ -31,6 +31,14 @@ class Day5QualityOrchestrator:
         # Create expectations directory
         self.expectations_dir = Path("expectations")
         self.expectations_dir.mkdir(exist_ok=True)
+        
+        # Initialize data attributes
+        self.reference_data = None
+        self.current_data = None
+        self.validation_results = {}
+        self.profiles = {}
+        self.drift_results = {}
+        self.monitoring_results = {}
         
         logger.info("Day 5 Quality Orchestrator initialized")
     
@@ -119,7 +127,7 @@ class Day5QualityOrchestrator:
         ref_passed = sum(1 for r in ref_results.values() if r.passed)
         curr_passed = sum(1 for r in curr_results.values() if r.passed)
         
-        print(f"\n📊 Validation Results:")
+        print("\n📊 Validation Results:")
         ref_pct = ref_passed/len(ref_results)*100
         curr_pct = curr_passed/len(curr_results)*100
         print(f"   Reference Data: {ref_passed}/{len(ref_results)} checks passed "
@@ -154,7 +162,7 @@ class Day5QualityOrchestrator:
         # Compare profiles
         profile_comparison = self.profiler.compare_profiles(ref_profile, curr_profile)
         
-        print(f"\n📊 Data Profile Comparison:")
+        print("\n📊 Data Profile Comparison:")
         print(f"   Reference: {ref_profile.row_count} rows, {ref_profile.column_count} columns")
         print(f"   Current:   {curr_profile.row_count} rows, {curr_profile.column_count} columns")
         print(f"   Row change: {profile_comparison['row_count_change']:+d}")
@@ -211,7 +219,7 @@ class Day5QualityOrchestrator:
                         status = "🚨 DRIFT DETECTED" if result.drift_detected else "✅ No Drift"
                         print(f"      {feature}: {status} (score: {result.drift_score:.4f})")
                         
-                    except Exception as e:
+                    except (ValueError, TypeError) as e:
                         logger.warning(f"Drift detection failed for {feature} with {method}: {e}")
             
             drift_results[method] = method_results
@@ -227,7 +235,7 @@ class Day5QualityOrchestrator:
             score = multivariate_result.drift_score
             print(f"\n📊 Multivariate Analysis: {status} (score: {score:.4f})")
             
-        except Exception as e:
+        except (ValueError, TypeError) as e:
             logger.warning(f"Multivariate drift detection failed: {e}")
         
         # Store results
@@ -240,7 +248,7 @@ class Day5QualityOrchestrator:
         logger.info("📊 Demonstrating quality monitoring...")
         
         # Simulate continuous monitoring
-        print(f"\n🔄 Simulating continuous quality monitoring...")
+        print("\n🔄 Simulating continuous quality monitoring...")
         
         monitoring_results = []
         
@@ -269,7 +277,7 @@ class Day5QualityOrchestrator:
                                 cycle_data, feature, "ks_test")
                             if result.drift_detected:
                                 drift_count += 1
-                        except:
+                        except (ValueError, TypeError):
                             pass
             
             # Alert conditions
@@ -305,7 +313,7 @@ class Day5QualityOrchestrator:
         logger.info("🚨 Demonstrating incident response system...")
         
         # Simulate critical data quality incident
-        print(f"\n🚨 SIMULATING CRITICAL DATA QUALITY INCIDENT")
+        print("\n🚨 SIMULATING CRITICAL DATA QUALITY INCIDENT")
         
         # Create severely degraded data
         incident_data = self._create_incident_data(self.current_data)
@@ -325,17 +333,17 @@ class Day5QualityOrchestrator:
         passed_checks = sum(1 for r in incident_results.values() if r.passed)
         quality_score = (passed_checks / len(incident_results)) * 100
         
-        print(f"   📊 Incident Assessment:")
+        print("   📊 Incident Assessment:")
         print(f"      Quality Score: {quality_score:.1f}% (Critical threshold: 60%)")
         print(f"      Failed Critical Checks: {failed_critical_checks}/{len(critical_checks)}")
         
         # Incident response actions
         if quality_score < 60 or failed_critical_checks >= 2:
-            print(f"   🚨 CRITICAL INCIDENT DETECTED - Initiating Response Protocol")
-            print(f"      ✅ Data pipeline paused")
-            print(f"      ✅ Stakeholders notified")
-            print(f"      ✅ Fallback to last known good data")
-            print(f"      ✅ Root cause analysis initiated")
+            print("   🚨 CRITICAL INCIDENT DETECTED - Initiating Response Protocol")
+            print("      ✅ Data pipeline paused")
+            print("      ✅ Stakeholders notified")
+            print("      ✅ Fallback to last known good data")
+            print("      ✅ Root cause analysis initiated")
             
             # Generate incident report
             incident_report = {
@@ -359,13 +367,13 @@ class Day5QualityOrchestrator:
                            f"incident_report_{timestamp}.json")
             incident_path.parent.mkdir(exist_ok=True)
             
-            with open(incident_path, 'w') as f:
+            with open(incident_path, 'w', encoding='utf-8') as f:
                 json.dump(incident_report, f, indent=2)
             
             print(f"      📝 Incident report saved: {incident_path.name}")
         
         else:
-            print(f"   ✅ Quality degradation within acceptable limits")
+            print("   ✅ Quality degradation within acceptable limits")
         
         logger.success("✅ Incident response demonstration complete")
     
@@ -420,7 +428,7 @@ class Day5QualityOrchestrator:
         report_path = Path("data/output") / f"day5_quality_report_{timestamp}.json"
         report_path.parent.mkdir(exist_ok=True)
         
-        with open(report_path, 'w') as f:
+        with open(report_path, 'w', encoding='utf-8') as f:
             json.dump(quality_report, f, indent=2)
         
         # Generate summary statistics
@@ -428,7 +436,7 @@ class Day5QualityOrchestrator:
         drift_summary = quality_report['drift_summary']
         monitoring_summary = quality_report['monitoring_summary']
         
-        print(f"\n📊 QUALITY ASSESSMENT SUMMARY")
+        print("\n📊 QUALITY ASSESSMENT SUMMARY")
         print(f"   🔍 Validation: {validation_summary['passed_checks']}/"
               f"{validation_summary['total_checks']} checks passed "
               f"({validation_summary['quality_score']:.1f}%)")
