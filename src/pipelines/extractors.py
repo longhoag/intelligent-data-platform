@@ -1,63 +1,185 @@
 """
-Data Extractors - Extract data from various sources (Day 1 Essential)
+Data extraction interfaces and implementations for production systems.
+Supports real-time API data, file processing, and database queries.
 """
 
-import pandas as pd
-import sqlite3
-import requests
 import os
-import numpy as np
-import logging
+import sqlite3
 import time
-import random
-from typing import Dict, List, Any, Optional
 from abc import ABC, abstractmethod
+
+import pandas as pd
+import requests
 from loguru import logger
 
 
 class BaseExtractor(ABC):
-    """Abstract base class for data extractors"""
+    """Base class for all data extractors"""
     
     @abstractmethod
-    def extract(self) -> pd.DataFrame:
+    def extract(self, *args, **kwargs) -> pd.DataFrame:
         """Extract data and return as DataFrame"""
-        pass
+        raise NotImplementedError
     
-    @abstractmethod
     def validate_source(self) -> bool:
-        """Validate data source is accessible"""
-        pass
+        """Validate data source is available - default implementation"""
+        return True
 
 
-class APIExtractor(BaseExtractor):
-    """Extract data from REST APIs"""
+class AlphaVantageExtractor(BaseExtractor):
+    """Production-ready Alpha Vantage API extractor with rate limiting"""
     
-    def __init__(self, base_url: str, timeout: int = 30, max_retries: int = 3):
-        self.base_url = base_url.rstrip('/')
-        self.timeout = timeout
-        self.max_retries = max_retries
-        self.session = requests.Session()
-    
-    def extract(self, endpoint: str) -> pd.DataFrame:
-        """Extract data from API endpoint"""
-        url = f"{self.base_url}{endpoint}"
+    def __init__(self, api_key: str):
+        """Initialize Alpha Vantage extractor
         
-        for attempt in range(self.max_retries):
+        Args:
+            api_key: Alpha Vantage API key
+        """
+        self.api_key = api_key
+        self.base_url = "https://www.alphavantage.co/query"
+        self.last_request_time = 0
+        self.min_request_interval = 12  # 5 calls per minute limit
+        self.timeout = 30
+        self.retries = 3
+        
+    def _wait_for_rate_limit(self) -> None:
+        """Ensure we don't exceed API rate limits"""
+        time_since_last = time.time() - self.last_request_time
+        if time_since_last < self.min_request_interval:
+            wait_time = self.min_request_interval - time_since_last
+            logger.info(f"Rate limiting: waiting {wait_time:.1f}s")
+            time.sleep(wait_time)
+    
+    def extract(self, *args, **kwargs) -> pd.DataFrame:
+        """Extract daily time series data for a stock symbol"""
+        # Get symbol from args or kwargs
+        symbol = args[0] if args else kwargs.get('symbol', 'AAPL')
+        
+        self._wait_for_rate_limit()
+        
+        params = {
+            'function': 'TIME_SERIES_DAILY',
+            'symbol': symbol,
+            'apikey': self.api_key,
+            'outputsize': 'compact'  # Last 100 data points
+        }
+        
+        for attempt in range(self.retries):
             try:
-                logger.info(f"Extracting data from {url} (attempt {attempt + 1})")
-                response = self.session.get(url, timeout=self.timeout)
+                logger.info(f"Fetching {symbol} data from Alpha Vantage (attempt {attempt + 1})")
+                
+                response = requests.get(self.base_url, params=params, timeout=self.timeout)
                 response.raise_for_status()
                 
                 data = response.json()
-                df = pd.DataFrame(data)
+                self.last_request_time = time.time()
                 
-                logger.info(f"Successfully extracted {len(df)} records from {endpoint}")
+                # Check for API errors
+                if "Error Message" in data:
+                    raise ValueError(f"API Error: {data['Error Message']}")
+                
+                if "Note" in data:
+                    logger.warning(f"API Note: {data['Note']}")
+                    time.sleep(60)  # Wait a minute if we hit rate limit
+                    continue
+                
+                # Extract time series data
+                time_series_key = "Time Series (Daily)"
+                if time_series_key not in data:
+                    available_keys = list(data.keys())
+                    error_msg = f"Expected key '{time_series_key}' not found. " \
+                               f"Available keys: {available_keys}"
+                    raise KeyError(error_msg)
+                
+                time_series = data[time_series_key]
+                
+                # Convert to DataFrame
+                df = pd.DataFrame.from_dict(time_series, orient='index')
+                df.index = pd.to_datetime(df.index)
+                df = df.sort_index()
+                
+                # Clean column names
+                df.columns = ['open', 'high', 'low', 'close', 'volume']
+                
+                # Convert to numeric
+                numeric_columns = ['open', 'high', 'low', 'close', 'volume']
+                for col in numeric_columns:
+                    df[col] = pd.to_numeric(df[col], errors='coerce')
+                
+                # Add symbol and metadata
+                df['symbol'] = symbol
+                df['timestamp'] = pd.Timestamp.now()
+                df['data_source'] = 'alpha_vantage'
+                
+                logger.info(f"Successfully extracted {len(df)} records for {symbol}")
                 return df
                 
             except requests.RequestException as e:
-                logger.warning(f"Attempt {attempt + 1} failed: {e}")
+                logger.error(f"Request failed for {symbol}: {e}")
+                if attempt == self.retries - 1:
+                    raise
+                time.sleep(2 ** attempt)  # Exponential backoff
+                
+            except (ValueError, KeyError) as e:
+                logger.error(f"Data processing error for {symbol}: {e}")
+                raise
+    
+    def validate_source(self) -> bool:
+        """Validate Alpha Vantage API is accessible"""
+        try:
+            # Test with a simple query
+            test_params = {
+                'function': 'TIME_SERIES_DAILY',
+                'symbol': 'AAPL',
+                'apikey': self.api_key,
+                'outputsize': 'compact'
+            }
+            
+            response = requests.get(self.base_url, params=test_params, timeout=10)
+            data = response.json()
+            
+            # Check if we get valid response structure
+            return "Time Series (Daily)" in data or "Note" in data
+            
+        except Exception:
+            return False
+
+
+class APIExtractor(BaseExtractor):
+    """Generic REST API extractor with session management"""
+    
+    def __init__(self, base_url: str, headers: dict = None, max_retries: int = 3):
+        self.base_url = base_url
+        self.max_retries = max_retries
+        self.session = requests.Session()
+        if headers:
+            self.session.headers.update(headers)
+    
+    def extract(self, *args, **kwargs) -> pd.DataFrame:
+        """Extract data from API endpoint"""
+        endpoint = args[0] if args else kwargs.get('endpoint', '')
+        url = f"{self.base_url.rstrip('/')}/{endpoint.lstrip('/')}"
+        
+        for attempt in range(self.max_retries):
+            try:
+                logger.info(f"Extracting from {url} (attempt {attempt + 1})")
+                response = self.session.get(url, timeout=30)
+                response.raise_for_status()
+                
+                data = response.json()
+                if isinstance(data, list):
+                    df = pd.DataFrame(data)
+                else:
+                    df = pd.json_normalize(data)
+                
+                logger.info(f"Successfully extracted {len(df)} records from {url}")
+                return df
+                
+            except requests.RequestException as e:
                 if attempt < self.max_retries - 1:
-                    time.sleep(2 ** attempt)  # Exponential backoff
+                    wait_time = 2 ** attempt
+                    logger.warning(f"Request failed, retrying in {wait_time}s: {e}")
+                    time.sleep(wait_time)
                 else:
                     logger.error(f"Failed to extract from {url} after {self.max_retries} attempts")
                     raise
@@ -72,7 +194,7 @@ class APIExtractor(BaseExtractor):
 
 
 class FileExtractor(BaseExtractor):
-    """Extract data from files with real data download capabilities"""
+    """Extract data from files with download capabilities"""
     
     def __init__(self, file_path: str = None, file_format: str = "csv", **kwargs):
         self.file_path = file_path
@@ -85,7 +207,6 @@ class FileExtractor(BaseExtractor):
             logger.info(f"Downloading file from {url} to {local_path}")
             
             # Create directory if it doesn't exist
-            import os
             os.makedirs(os.path.dirname(local_path), exist_ok=True)
             
             response = requests.get(url, stream=True, timeout=120)
@@ -98,46 +219,46 @@ class FileExtractor(BaseExtractor):
             logger.info(f"Successfully downloaded file to {local_path}")
             return True
             
-        except Exception as e:
+        except requests.RequestException as e:
             logger.error(f"Failed to download file from {url}: {e}")
             return False
     
-    def extract(self, file_path: str = None, file_url: str = None) -> pd.DataFrame:
+    def extract(self, *args, **kwargs) -> pd.DataFrame:
         """Extract data from file, downloading if URL provided"""
-        target_path = file_path or self.file_path
+        file_path = kwargs.get('file_path') or self.file_path
+        file_url = kwargs.get('file_url')
         
         # Download file if URL is provided
         if file_url:
-            if not self.download_file(file_url, target_path):
-                raise Exception(f"Failed to download file from {file_url}")
+            if not self.download_file(file_url, file_path):
+                raise RuntimeError(f"Failed to download file from {file_url}")
         
         try:
-            logger.info(f"Extracting data from {target_path}")
+            logger.info(f"Extracting data from {file_path}")
             
             if self.file_format == "csv":
-                df = pd.read_csv(target_path, **self.read_kwargs)
+                df = pd.read_csv(file_path, **self.read_kwargs)
             elif self.file_format == "json":
-                df = pd.read_json(target_path, **self.read_kwargs)
+                df = pd.read_json(file_path, **self.read_kwargs)
             elif self.file_format == "excel":
-                df = pd.read_excel(target_path, **self.read_kwargs)
+                df = pd.read_excel(file_path, **self.read_kwargs)
             elif self.file_format == "parquet":
-                df = pd.read_parquet(target_path, **self.read_kwargs)
+                df = pd.read_parquet(file_path, **self.read_kwargs)
             else:
                 raise ValueError(f"Unsupported file format: {self.file_format}")
             
-            logger.info(f"Successfully extracted {len(df)} records from {target_path}")
+            logger.info(f"Successfully extracted {len(df)} records from {file_path}")
             return df
             
-        except Exception as e:
-            logger.error(f"Failed to extract data from {target_path}: {e}")
+        except (IOError, pd.errors.EmptyDataError, pd.errors.ParserError) as e:
+            logger.error(f"Failed to extract data from {file_path}: {e}")
             raise
     
     def validate_source(self) -> bool:
         """Validate file exists and is readable"""
         try:
-            import os
             return os.path.exists(self.file_path) and os.access(self.file_path, os.R_OK)
-        except Exception:
+        except (TypeError, OSError):
             return False
 
 
@@ -147,10 +268,11 @@ class DatabaseExtractor(BaseExtractor):
     def __init__(self, db_path: str):
         self.db_path = db_path
     
-    def extract(self, query: str) -> pd.DataFrame:
+    def extract(self, *args, **kwargs) -> pd.DataFrame:
         """Extract data using SQL query"""
+        query = args[0] if args else kwargs.get('query', 'SELECT * FROM sqlite_master')
+        
         try:
-            import sqlite3
             conn = sqlite3.connect(self.db_path)
             df = pd.read_sql(query, conn)
             conn.close()
@@ -158,186 +280,17 @@ class DatabaseExtractor(BaseExtractor):
             logger.info(f"Extracted {len(df)} records from database")
             return df
             
-        except Exception as e:
+        except (sqlite3.Error, pd.errors.DatabaseError) as e:
             logger.error(f"Database extraction failed: {e}")
             raise
     
     def validate_source(self) -> bool:
         """Validate database file exists and is accessible"""
         try:
-            import sqlite3
-            import os
             if not os.path.exists(self.db_path):
                 return False
             conn = sqlite3.connect(self.db_path)
             conn.close()
             return True
-        except Exception:
+        except (sqlite3.Error, OSError):
             return False
-
-
-def create_financial_database() -> None:
-    """Create financial trading database with realistic market data"""
-    import sqlite3
-    import os
-    from datetime import datetime, timedelta
-    import random
-    
-    os.makedirs("data", exist_ok=True)
-    db_path = "data/financial_database.db"
-    
-    # Remove existing database to avoid conflicts
-    if os.path.exists(db_path):
-        os.remove(db_path)
-    
-    # Create database and tables
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    
-    # Create portfolios table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS portfolios (
-            portfolio_id INTEGER PRIMARY KEY,
-            account_id TEXT,
-            account_name TEXT,
-            total_value REAL,
-            cash_balance REAL,
-            created_date DATE,
-            last_updated DATE,
-            risk_level TEXT,
-            investment_strategy TEXT
-        )
-    ''')
-    
-    # Create transactions table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS transactions (
-            transaction_id INTEGER PRIMARY KEY,
-            portfolio_id INTEGER,
-            symbol TEXT,
-            company_name TEXT,
-            transaction_type TEXT,
-            quantity INTEGER,
-            price REAL,
-            transaction_date DATETIME,
-            commission REAL,
-            total_value REAL,
-            FOREIGN KEY (portfolio_id) REFERENCES portfolios (portfolio_id)
-        )
-    ''')
-    
-    # Create market_data table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS market_data (
-            id INTEGER PRIMARY KEY,
-            symbol TEXT,
-            date DATE,
-            open REAL,
-            high REAL,
-            low REAL,
-            close REAL,
-            volume INTEGER,
-            adjusted_close REAL,
-            sector TEXT,
-            market_cap REAL
-        )
-    ''')
-    
-    # Generate portfolio data (1000 portfolios)
-    portfolios = []
-    strategies = ["Growth", "Value", "Income", "Balanced", "Aggressive"]
-    risk_levels = ["Conservative", "Moderate", "Aggressive", "Very Aggressive"]
-    
-    for i in range(1, 1001):
-        created_date = datetime(2020, 1, 1) + timedelta(days=random.randint(0, 1400))
-        portfolios.append((
-            i,
-            f"ACC{i:06d}",
-            f"Account Holder {i}",
-            round(random.uniform(10000, 1000000), 2),
-            round(random.uniform(1000, 50000), 2),
-            created_date.strftime('%Y-%m-%d'),
-            (created_date + timedelta(days=random.randint(1, 100))).strftime('%Y-%m-%d'),
-            random.choice(risk_levels),
-            random.choice(strategies)
-        ))
-    
-    cursor.executemany('''
-        INSERT INTO portfolios VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ''', portfolios)
-    
-    # Generate transaction data (15000 transactions)
-    transactions = []
-    symbols = ["AAPL", "GOOGL", "MSFT", "AMZN", "TSLA", "META", "NVDA", "JPM", "JNJ", "V", 
-              "PG", "UNH", "HD", "MA", "BAC", "XOM", "DIS", "ADBE", "CRM", "NFLX"]
-    companies = {
-        "AAPL": "Apple Inc.", "GOOGL": "Alphabet Inc.", "MSFT": "Microsoft Corp.",
-        "AMZN": "Amazon.com Inc.", "TSLA": "Tesla Inc.", "META": "Meta Platforms Inc.",
-        "NVDA": "NVIDIA Corp.", "JPM": "JPMorgan Chase", "JNJ": "Johnson & Johnson",
-        "V": "Visa Inc.", "PG": "Procter & Gamble", "UNH": "UnitedHealth Group"
-    }
-    transaction_types = ["BUY", "SELL"]
-    
-    for i in range(1, 15001):
-        symbol = random.choice(symbols)
-        transaction_date = datetime(2020, 1, 1) + timedelta(days=random.randint(0, 1400))
-        price = round(random.uniform(50, 500), 2)
-        quantity = random.randint(1, 1000)
-        commission = round(random.uniform(5, 25), 2)
-        
-        transactions.append((
-            i,
-            random.randint(1, 1000),  # portfolio_id
-            symbol,
-            companies.get(symbol, f"{symbol} Corp."),
-            random.choice(transaction_types),
-            quantity,
-            price,
-            transaction_date.strftime('%Y-%m-%d %H:%M:%S'),
-            commission,
-            round(quantity * price + commission, 2)
-        ))
-    
-    cursor.executemany('''
-        INSERT INTO transactions VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ''', transactions)
-    
-    # Generate market data (25000 records)
-    market_data = []
-    sectors = ["Technology", "Healthcare", "Financial", "Consumer", "Energy", "Industrial"]
-    
-    for i in range(1, 25001):
-        symbol = random.choice(symbols)
-        date = datetime(2020, 1, 1) + timedelta(days=random.randint(0, 1400))
-        open_price = round(random.uniform(50, 500), 2)
-        high_price = round(open_price * random.uniform(1.0, 1.1), 2)
-        low_price = round(open_price * random.uniform(0.9, 1.0), 2)
-        close_price = round(random.uniform(low_price, high_price), 2)
-        volume = random.randint(100000, 50000000)
-        
-        market_data.append((
-            i,
-            symbol,
-            date.strftime('%Y-%m-%d'),
-            open_price,
-            high_price,
-            low_price,
-            close_price,
-            volume,
-            round(close_price * random.uniform(0.98, 1.02), 2),  # adjusted_close
-            random.choice(sectors),
-            random.randint(1000000000, 2000000000000)  # market_cap
-        ))
-    
-    cursor.executemany('''
-        INSERT INTO market_data VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ''', market_data)
-    
-    conn.commit()
-    conn.close()
-    
-    total_records = 1000 + 15000 + 25000
-    logger.info(f"Created financial database with {total_records:,} total records: {db_path}")
-    logger.info(f"  - Portfolios: 1,000 records")
-    logger.info(f"  - Transactions: 15,000 records")
-    logger.info(f"  - Market Data: 25,000 records")

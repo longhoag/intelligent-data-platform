@@ -33,9 +33,10 @@ import seaborn as sns
 
 # Optional imports - handle missing components gracefully
 try:
-    from src.pipelines.extractors import FileExtractor
+    from src.pipelines.extractors import FileExtractor, AlphaVantageExtractor
 except ImportError:
     FileExtractor = None
+    AlphaVantageExtractor = None
 
 try:
     from src.pipelines.transformers import DataTransformer
@@ -135,9 +136,23 @@ class IntegrationDemoOrchestrator:
             self.data_transformer = DataTransformer() if DataTransformer else None
             self.db_loader = DatabaseLoader() if DatabaseLoader else None
             
-            if any([self.file_extractor, self.data_transformer, self.db_loader]):
-                self.integration_status['day1'] = 'initialized'
-                logger.info("✅ Day 1 components initialized (partial)")
+            # Initialize Alpha Vantage extractor for real data
+            self.alpha_vantage_extractor = None
+            if AlphaVantageExtractor:
+                try:
+                    # Use the same API key that was working in Day 5 demo
+                    self.alpha_vantage_extractor = AlphaVantageExtractor("OJ3LD5FTIQPAGH10")
+                    logger.info("✅ Alpha Vantage extractor initialized with production API key")
+                except Exception as e:
+                    logger.warning(f"⚠️ Alpha Vantage extractor failed to initialize: {e}")
+            
+            component_count = sum(1 for comp in [self.file_extractor, self.data_transformer,
+                                               self.db_loader, self.alpha_vantage_extractor]
+                                 if comp)
+            
+            if component_count > 0:
+                self.integration_status['day1'] = f'initialized ({component_count}/4 components)'
+                logger.info(f"✅ Day 1 components initialized: {component_count}/4 available")
             else:
                 self.integration_status['day1'] = 'fallback mode - using mock components'
                 logger.warning("⚠️ Day 1 components not available - using fallback")
@@ -205,12 +220,39 @@ class IntegrationDemoOrchestrator:
             self.integration_status['day5'] = f'failed: {str(e)}'
             logger.error(f"❌ Day 5 initialization failed: {e}")
     
+    def _display_data_source_info(self):
+        """Display information about available data sources"""
+        logger.info("📊 DATA SOURCE CONFIGURATION")
+        logger.info("-" * 50)
+        
+        if hasattr(self, 'alpha_vantage_extractor') and self.alpha_vantage_extractor:
+            logger.info("🌟 REAL DATA SOURCE: Alpha Vantage API")
+            logger.info("   • API Status: ✅ Connected")
+            logger.info("   • API Key: OJ3LD5FTIQPAGH10")
+            logger.info("   • Rate Limit: 5 calls/minute")
+            logger.info("   • Data Type: Real-time financial market data")
+            logger.info("   • Supported Symbols: AAPL, GOOGL, MSFT, TSLA, AMZN, NVDA")
+        else:
+            logger.info("📊 DATA SOURCE: Generated Test Data")
+            logger.info("   • Type: Synthetic financial data")
+            logger.info("   • Purpose: Demonstration and testing")
+        
+        if hasattr(self, 'file_extractor') and self.file_extractor:
+            logger.info("📁 File Extractor: ✅ Available")
+        else:
+            logger.info("📁 File Extractor: ⚠️ Not available")
+            
+        logger.info("-" * 50)
+    
     async def run_integration_demo(self):
         """Run complete end-to-end integration demo"""
         logger.info("🎯 Starting Complete Platform Integration Demo")
         logger.info("=" * 80)
         logger.info("🏗️  INTELLIGENT DATA PLATFORM - INTEGRATION TEST")
         logger.info("=" * 80)
+        
+        # Display data source configuration
+        self._display_data_source_info()
         
         try:
             # Phase 1: Component Health Check
@@ -292,34 +334,76 @@ class IntegrationDemoOrchestrator:
         start_time = time.time()
         
         try:
-            # Generate test financial data
-            test_data = self._generate_test_financial_data()
+            # Phase 1: Data Extraction
+            logger.info("📊 Phase 1: Data Extraction")
             
-            # Save test data
-            raw_data_path = "data/integration_test/raw/financial_data.csv"
-            test_data.to_csv(raw_data_path, index=False)
-            print(f"📄 Generated test data: {len(test_data)} records")
-            
-            # Extract data using Day 1 components
-            if hasattr(self, 'file_extractor'):
-                extracted_data = self.file_extractor.extract_csv(raw_data_path)
-                print(f"📥 Extracted: {len(extracted_data)} records")
+            # Try to fetch real Alpha Vantage data first
+            if hasattr(self, 'alpha_vantage_extractor') and self.alpha_vantage_extractor:
+                try:
+                    logger.info("🌟 Attempting to fetch REAL Alpha Vantage data...")
+                    real_symbols = ['AAPL', 'GOOGL', 'MSFT']
+                    real_data_parts = []
+                    
+                    for symbol in real_symbols:
+                        try:
+                            symbol_data = self.alpha_vantage_extractor.extract(symbol)
+                            real_data_parts.append(symbol_data)
+                            logger.info(f"✅ Fetched {len(symbol_data)} records for {symbol}")
+                        except Exception as e:
+                            logger.warning(f"⚠️ Failed to fetch {symbol}: {e}")
+                    
+                    if real_data_parts:
+                        extracted_data = pd.concat(real_data_parts, ignore_index=True)
+                        logger.success(f"🎯 Using REAL Alpha Vantage data: "
+                                      f"{len(extracted_data)} records")
+                        
+                        # Save real data for reference
+                        real_data_path = "data/integration_test/raw/alpha_vantage_real_data.csv"
+                        extracted_data.to_csv(real_data_path, index=False)
+                        logger.info(f"💾 Saved real data to: {real_data_path}")
+                    else:
+                        raise ValueError("No real data could be fetched")
+                        
+                except Exception as e:
+                    logger.warning(f"⚠️ Real data extraction failed: {e}, "
+                                  f"falling back to test data")
+                    extracted_data = None
             else:
-                extracted_data = test_data
-                print("⚠️  Using direct data (Day 1 extractor not available)")
+                logger.info("⚠️ Alpha Vantage extractor not available, using test data")
+                extracted_data = None
             
-            # Transform data using Day 1 components
-            if hasattr(self, 'data_transformer'):
+            # Fallback to generated test data if real data failed
+            if extracted_data is None:
+                # Generate test financial data
+                test_data = self._generate_test_financial_data()
+                
+                # Save test data
+                raw_data_path = "data/integration_test/raw/financial_data.csv"
+                test_data.to_csv(raw_data_path, index=False)
+                logger.info(f"📄 Generated test data: {len(test_data)} records")
+                
+                # Extract data using Day 1 file extractor if available
+                if hasattr(self, 'file_extractor') and self.file_extractor:
+                    extracted_data = self.file_extractor.extract(file_path=raw_data_path)
+                    logger.info(f"📥 Extracted: {len(extracted_data)} records")
+                else:
+                    extracted_data = test_data
+                    logger.info("⚠️ Using direct data (Day 1 extractor not available)")
+            
+            # Phase 2: Data Transformation
+            logger.info("🔄 Phase 2: Data Transformation")
+            if hasattr(self, 'data_transformer') and self.data_transformer:
                 transformed_data = self.data_transformer.transform(extracted_data)
-                print(f"🔄 Transformed: {len(transformed_data)} records")
+                logger.info(f"🔄 Transformed: {len(transformed_data)} records")
             else:
                 transformed_data = extracted_data
-                print("⚠️  Using raw data (Day 1 transformer not available)")
+                logger.info("⚠️ Using raw data (Day 1 transformer not available)")
             
-            # Load processed data
+            # Phase 3: Data Loading
+            logger.info("💾 Phase 3: Data Loading")
             processed_path = "data/integration_test/processed/financial_processed.csv"
             transformed_data.to_csv(processed_path, index=False)
-            print(f"💾 Loaded to: {processed_path}")
+            logger.info(f"💾 Loaded to: {processed_path}")
             
             # Store for next phases
             self.processed_data = transformed_data

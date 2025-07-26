@@ -49,7 +49,7 @@ python run_demo.py integration   # Complete platform
 
 ### Environment Setup
 
-#### Option A: Conda Environment (External SSD - Recommended)
+#### Conda Environment (External SSD - Recommended)
 ```bash
 # Create conda environment on external SSD (saves space on main drive)
 conda create --prefix /Volumes/deuxSSD/.conda/envs/intelligent-data-platform python=3.11
@@ -57,12 +57,9 @@ conda create --prefix /Volumes/deuxSSD/.conda/envs/intelligent-data-platform pyt
 # Activate the environment
 conda activate /Volumes/deuxSSD/.conda/envs/intelligent-data-platform
 
-# Install core dependencies
-conda install pandas numpy matplotlib seaborn requests pyyaml sqlalchemy
-pip install loguru yfinance alpha-vantage scikit-learn streamlit plotly scipy
 ```
 
-#### Option B: Poetry Environment (Alternative)
+#### Poetry Environment
 ```bash
 cd intelligent-data-platform
 poetry install
