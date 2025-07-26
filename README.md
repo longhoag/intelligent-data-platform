@@ -69,6 +69,133 @@ poetry install
 poetry shell
 ```
 
+### Airflow Setup (Optional - For Pipeline Orchestration)
+
+The platform includes a production-ready Airflow DAG for orchestrating the complete financial data pipeline.
+
+#### Quick Setup (Automated)
+```bash
+# Run the automated setup script
+./airflow_setup.sh
+
+# This will:
+# - Install Apache Airflow with required extras
+# - Set up environment variables and directories  
+# - Initialize the Airflow database
+# - Create admin user (admin/admin)
+# - Configure DAGs folder
+```
+
+#### Manual Setup (Advanced)
+```bash
+# Install Airflow with necessary extras
+pip install apache-airflow[postgres,redis]==2.8.1
+
+# Set environment variables
+export AIRFLOW_HOME=/Volumes/deuxSSD/Developer/intelligent-data-platform
+export AIRFLOW__CORE__DAGS_FOLDER="$AIRFLOW_HOME/dags"
+export AIRFLOW__CORE__EXECUTOR="LocalExecutor"
+
+# Initialize Airflow database
+airflow db init
+
+# Create admin user
+airflow users create \
+    --username admin \
+    --firstname Admin \
+    --lastname User \
+    --role Admin \
+    --email admin@intelligentdata.com \
+    --password admin
+```
+
+#### Start Airflow Services
+
+**Terminal 1 - Webserver:**
+```bash
+./start_airflow_webserver.sh
+# Or manually: airflow webserver --port 8080
+```
+
+**Terminal 2 - Scheduler:**
+```bash
+./start_airflow_scheduler.sh  
+# Or manually: airflow scheduler
+```
+
+#### Access Airflow UI
+```bash
+# Open in browser
+open http://localhost:8080
+
+# Login credentials:
+# Username: admin
+# Password: admin
+```
+
+> 📖 **Detailed Guide**: See [AIRFLOW_UI_GUIDE.md](AIRFLOW_UI_GUIDE.md) for complete step-by-step instructions with screenshots and troubleshooting.
+
+#### View Financial Data Pipeline DAG
+
+Once logged in to the Airflow UI:
+
+1. **DAGs View**: Click on "DAGs" in the top navigation
+2. **Find Pipeline**: Look for `financial_data_pipeline` in the DAGs list
+3. **DAG Details**: Click on the DAG name to view the pipeline structure
+4. **Graph View**: Click "Graph" tab to see the visual workflow:
+   ```
+   setup_financial_environment
+   ├── extract_api_financial_data
+   ├── extract_file_financial_data  
+   └── extract_database_financial_data
+       └── transform_financial_data
+           └── validate_financial_data
+               └── load_financial_data
+                   └── generate_financial_pipeline_report
+   ```
+
+#### Run the Pipeline
+
+**Manual Trigger:**
+```bash
+# From Airflow UI: Click "Play" button next to the DAG
+# Or from command line:
+airflow dags trigger financial_data_pipeline
+```
+
+**Monitor Execution:**
+- **Graph View**: Shows real-time task status (green=success, red=failed, yellow=running)
+- **Tree View**: Historical run timeline
+- **Logs**: Click on any task box to view execution logs
+- **Task Duration**: View performance metrics
+
+#### DAG Features
+
+- **Schedule**: Runs hourly (`@hourly`)
+- **Data Sources**: 7 financial data sources (APIs, files, database)
+- **Processing**: 40,000+ financial records with technical indicators
+- **Validation**: Comprehensive data quality checks
+- **Outputs**: Processed data files and execution reports
+
+#### Troubleshooting
+
+**DAG Not Visible:**
+```bash
+# Check DAG file for syntax errors
+python -m py_compile dags/financial_data_pipeline_dag.py
+
+# Refresh DAGs in UI
+# Or restart scheduler: Ctrl+C then ./start_airflow_scheduler.sh
+```
+
+**Import Errors:**
+```bash
+# Ensure dependencies are installed
+pip install pandas numpy pyyaml sqlalchemy loguru
+
+# Check Python path in DAG logs
+```
+
 ### Full Infrastructure (Optional)
 ```bash
 # Deploy complete Docker stack
